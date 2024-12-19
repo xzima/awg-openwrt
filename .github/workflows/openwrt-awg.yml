@@ -1,4 +1,4 @@
-name: Create Release Mediatek Filogic
+name: Create Release NanoPi R5C
 #on: [push]
 on:
   push:
@@ -8,23 +8,24 @@ on:
 jobs:
   build:
     name: "v${{ matrix.tag }} - ${{ matrix.build_env.pkgarch}} :: ${{ matrix.build_env.target}}/${{ matrix.build_env.subtarget}} build"
-    runs-on: Linux
-    #runs-on: ubuntu-latest
+    runs-on: ubuntu-latest
     strategy:
       matrix:
         tag: ['23.05.5']
         build_env:
           - pkgarch: aarch64_generic
+            branch: master-v23.05
             target: rockchip
             subtarget: armv8
+            vermagic: 95406503857f757c242adad1c14f7d60
     steps:
       - uses: actions/checkout@v4
         with:
-          repository: openwrt/openwrt
-          ref: v${{ matrix.tag }}
+          repository: friendlyarm/friendlywrt
+          ref: v${{ matrix.build_env.branch }}
           fetch-depth: 0
 
-      - name: Update and install feeds for OpenWRT_v${{ matrix.tag }} ${{ matrix.build_env.target}}/${{ matrix.build_env.subtarget}}
+      - name: Update and install feeds for FriendlyWRT_v${{ matrix.tag }} ${{ matrix.build_env.target}}/${{ matrix.build_env.subtarget}}
         run: |
           pkgarch=${{ matrix.build_env.pkgarch}}
           target=${{ matrix.build_env.target}}
@@ -37,7 +38,7 @@ jobs:
 
           wget https://downloads.openwrt.org/releases/${{ matrix.tag }}/targets/${target}/${subtarget}/feeds.buildinfo -O feeds.conf
 
-          echo "src-git awgopenwrt https://github.com/lolo6oT/awg-openwrt.git" >> ./feeds.conf
+          echo "src-git awgopenwrt https://github.com/xzima/awg-openwrt.git" >> ./feeds.conf
 
           ./scripts/feeds update -a
           ./scripts/feeds install -a
@@ -46,7 +47,7 @@ jobs:
 
           make defconfig
 
-      - name: Make Download and World OpenWRT_v${{ matrix.tag }} ${{ matrix.build_env.target}}/${{ matrix.build_env.subtarget}}
+      - name: Make Download and World FriendlyWRT_v${{ matrix.tag }} ${{ matrix.build_env.target}}/${{ matrix.build_env.subtarget}}
         run: |
           export FORCE_UNSAFE_CONFIGURE=1
           echo "CONFIG_PACKAGE_kmod-amneziawg=m" >> .config
@@ -64,19 +65,43 @@ jobs:
           #make -j $(nproc) V=sc download world
           echo "Make tools/install"
           make tools/install -i -j $(nproc)
+
+          cat ./build_dir/target-*/linux-*/linux-*/.vermagic || true
+          
           echo "Make toolchain/install"
           make toolchain/install -i -j $(nproc)
+
+          cat ./build_dir/target-*/linux-*/linux-*/.vermagic || true
+          
           echo "Make Kernel Compile"
           make target/linux/compile -i -j $(nproc)
+          
+          VERMAGIC=`cat ./build_dir/target-*/linux-*/linux-*/.vermagic`
+          VERMAGIC_EXPECTED=${{ matrix.build_env.vermagic }}
+          
+          if [ "$VERMAGIC" != "$VERMAGIC_EXPECTED" ]; then
+            echo Vermagic mismatch: $VERMAGIC, expected $VERMAGIC_EXPECTED
+            exit 1
+          fi
 
-      - name: Make ipks amnezia_${{ github.ref_name }} for original OpenWRT_v${{ matrix.tag }} ${{ matrix.build_env.target}}/${{ matrix.build_env.subtarget}}
+      - name: Make ipks amnezia_${{ github.ref_name }} for original FriendlyWRT_v${{ matrix.tag }} ${{ matrix.build_env.target}}/${{ matrix.build_env.subtarget}}
         run: |
+          VERMAGIC=`cat ./build_dir/target-*/linux-*/linux-*/.vermagic`
+          echo "Vermagic: $VERMAGIC"
+
+          VERMAGIC_EXPECTED=${{ matrix.build_env.vermagic }}
+
+          if [ "$VERMAGIC" != "$VERMAGIC_EXPECTED" ]; then
+            echo Vermagic mismatch: $VERMAGIC, expected $VERMAGIC_EXPECTED
+            exit 1
+          fi
+          
           make -j $(nproc) package/amneziawg-tools/{clean,download,prepare,compile}
           make -j $(nproc) package/amneziawg-go/{clean,download,prepare,compile}
           make -j $(nproc) package/kmod-amneziawg/{clean,download,prepare,compile}
           make -j $(nproc) package/luci-proto-amneziawg/{clean,download,prepare,compile}
 
-      - name: Prepare artifacts OpenWRT_v${{ matrix.tag }} ${{ matrix.build_env.target}}/${{ matrix.build_env.subtarget}}
+      - name: Prepare artifacts FriendlyWRT_v${{ matrix.tag }} ${{ matrix.build_env.target}}/${{ matrix.build_env.subtarget}}
         run: |
           tag_name=${{ github.ref_name }}
           mkdir -p awgrelease
