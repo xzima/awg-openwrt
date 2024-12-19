@@ -14,9 +14,9 @@ jobs:
       matrix:
         tag: ['23.05.5']
         build_env:
-          - pkgarch: aarch64_cortex-a53
-            target: mediatek
-            subtarget: filogic
+          - pkgarch: aarch64_generic
+            target: rockchip
+            subtarget: armv8
     steps:
       - uses: actions/checkout@v4
         with:
